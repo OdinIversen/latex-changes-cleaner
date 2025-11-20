@@ -6,37 +6,56 @@ import sys
 def find_matching_brace(text, start_index):
     """
     Finds the index of the matching closing brace '}' for the opening brace '{'
-    located at start_index. Handles nested braces properly using a stack.
+    located at start_index.
     """
     if start_index >= len(text) or text[start_index] != '{':
         return -1
     
     stack = 1
-    current_index = start_index + 1
+    i = start_index + 1
+    length = len(text)
     
-    while current_index < len(text):
-        char = text[current_index]
+    while i < length:
+        char = text[i]
+        
+        # 1. Handle Escape Sequences (e.g. \{, \\, \%)
+        if char == '\\':
+            # Skip the backslash AND the next character
+            i += 2
+            continue
+        
+        # 2. Handle Comments
+        if char == '%':
+            # Skip everything until the next newline
+            while i < length and text[i] != '\n':
+                i += 1
+            # Now i is at \n (or end of string). 
+            # We continue the outer loop. The next iteration will read \n 
+            # and process it normally (incrementing i).
+            continue
+
+        # 3. Handle Braces
         if char == '{':
             stack += 1
         elif char == '}':
             stack -= 1
             
         if stack == 0:
-            return current_index
+            return i
         
-        current_index += 1
+        i += 1
         
     return -1
 
 def process_content(content):
     """
-    Iteratively finds changes package commands and resolves them 
-    until no commands remain.
+    Iteratively finds changes package commands and resolves them.
+    REGEX UPDATE: Now allows whitespace before the brace (e.g., \added {text})
     """
     
     # 1. Handle \added{...} -> ...
     while True:
-        match = re.search(r'\\added\{', content)
+        match = re.search(r'\\added\s*\{', content)
         if not match: break
         
         start_cmd = match.start()
@@ -52,7 +71,7 @@ def process_content(content):
 
     # 2. Handle \deleted{...} -> (empty string)
     while True:
-        match = re.search(r'\\deleted\{', content)
+        match = re.search(r'\\deleted\s*\{', content)
         if not match: break
         
         start_cmd = match.start()
@@ -67,7 +86,7 @@ def process_content(content):
 
     # 3. Handle \replaced{new}{old} -> new
     while True:
-        match = re.search(r'\\replaced\{', content)
+        match = re.search(r'\\replaced\s*\{', content)
         if not match: break
         
         start_cmd = match.start()
@@ -79,10 +98,16 @@ def process_content(content):
         if end_brace_1 == -1: break
 
         # Second argument (Old Text)
-        # We look for the next '{' starting from end_brace_1
-        # We skip whitespace if any, though standard latex is }{
         remaining = content[end_brace_1+1:]
-        next_brace_rel = remaining.find('{')
+        
+        # Find first '{' that isn't whitespace
+        next_brace_rel = -1
+        for idx, c in enumerate(remaining):
+            if c.isspace(): continue
+            if c == '{':
+                next_brace_rel = idx
+                break
+            break 
         
         if next_brace_rel == -1: break
         
@@ -96,9 +121,9 @@ def process_content(content):
         # Replace the whole \replaced{new}{old} block with just 'new'
         content = content[:start_cmd] + new_text + content[end_brace_2+1:]
 
-    # 4. Handle \highlight{...} -> ... (Optional, keeping text)
+    # 4. Handle \highlight{...} -> ...
     while True:
-        match = re.search(r'\\highlight\{', content)
+        match = re.search(r'\\highlight\s*\{', content)
         if not match: break
         
         start_cmd = match.start()
@@ -113,7 +138,6 @@ def process_content(content):
     return content
 
 def clean_directory(input_dir, output_dir):
-    # Check if input directory exists
     if not os.path.exists(input_dir):
         print(f"Input directory '{input_dir}' not found.")
         os.makedirs(input_dir)
@@ -141,7 +165,7 @@ def clean_directory(input_dir, output_dir):
                 
                 cleaned_content = process_content(raw_content)
                 
-                # Optional: Comment out the changes package import if found
+                # Comment out changes package import
                 cleaned_content = re.sub(r'(\\usepackage(\[.*?\])?\{changes\})', r'% \1', cleaned_content)
 
                 with open(output_path, 'w', encoding='utf-8') as f:
@@ -160,16 +184,9 @@ def clean_directory(input_dir, output_dir):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Flatten LaTeX files by accepting 'changes' package edits.")
-    
-    # Arguments are now optional with defaults
-    parser.add_argument("input_dir", nargs='?', default='input', help="Path to the folder containing source .tex files (default: input)")
-    parser.add_argument("output_dir", nargs='?', default='output', help="Path to the folder where cleaned files will be saved (default: output)")
-    
+    parser.add_argument("input_dir", nargs='?', default='input', help="Path to source folder")
+    parser.add_argument("output_dir", nargs='?', default='output', help="Path to output folder")
     args = parser.parse_args()
     
     print(f"--- LaTeX Changes Cleaner ---")
-    print(f"Input Folder:  {args.input_dir}")
-    print(f"Output Folder: {args.output_dir}")
-    print(f"-----------------------------")
-    
     clean_directory(args.input_dir, args.output_dir)
