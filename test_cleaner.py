@@ -1,8 +1,7 @@
 import pytest
 from cleaner import process_content
 
-# Pytest allows us to use simple assert statements
-# and simple functions instead of classes.
+# --- Basic Command Tests ---
 
 def test_basic_added():
     raw = r"This is \added{new} text."
@@ -19,52 +18,60 @@ def test_basic_replaced():
     expected = r"This is new text."
     assert process_content(raw) == expected
 
+def test_highlight():
+    # Added this missing test case
+    raw = r"This is \highlight{highlighted} text."
+    expected = r"This is highlighted text."
+    assert process_content(raw) == expected
+
+# --- Structural Tests (The "Hard" Stuff) ---
+
 def test_nested_braces_bold():
-    # \added{... \textbf{...} ...}
+    # Ensures \textbf{} doesn't close the \added{} command early
     raw = r"Start \added{add \textbf{bold}} end."
     expected = r"Start add \textbf{bold} end."
     assert process_content(raw) == expected
 
+def test_nested_changes_commands():
+    # Handles recursive changes commands
+    raw = r"\added{Outer \added{Inner}}"
+    expected = r"Outer Inner"
+    assert process_content(raw) == expected
+
+def test_multiline():
+    # Handles commands spanning newlines
+    raw = "\\added{Line one\nLine two}"
+    expected = "Line one\nLine two"
+    assert process_content(raw) == expected
+
+def test_multiple_changes_inline():
+    # Handles multiple commands on one line
+    raw = r"\added{One} \deleted{Two} \replaced{Three}{Four}"
+    expected = r"One  Three"
+    assert process_content(raw) == expected
+
+# --- Edge Cases (Escaping, Comments, Whitespace) ---
+
 def test_escaped_braces():
-    # \{ and \} should not be counted as structural braces
+    # \{ and \} are printable characters, NOT syntax
     raw = r"Set \added{A = \{1, 2\}} end."
     expected = r"Set A = \{1, 2\} end."
     assert process_content(raw) == expected
 
 def test_escaped_backslash_before_brace():
-    # Case: \\ is a newline, followed by a real brace group { Group }
-    # Input must have a matching closing brace to be valid.
+    # \\ is a newline, so the following { IS syntax
     raw = r"Start \added{Line \\{ Group }} end."
     expected = r"Start Line \\{ Group } end."
     assert process_content(raw) == expected
 
 def test_comment_with_braces():
-    # % } should be ignored inside the changes command
+    # Braces inside comments % } must be ignored
     raw = "Start \\added{content % comment with closing brace } \n} end."
-    # The brace inside the comment is ignored by parser.
-    # The parser finds the final brace after \n.
-    # The content extracted includes the comment.
     expected = "Start content % comment with closing brace } \n end."
-    assert process_content(raw) == expected
-
-def test_multiple_changes_inline():
-    raw = r"\added{One} \deleted{Two} \replaced{Three}{Four}"
-    expected = r"One  Three"
-    assert process_content(raw) == expected
-
-def test_multiline():
-    raw = "\\added{Line one\nLine two}"
-    expected = "Line one\nLine two"
-    assert process_content(raw) == expected
-
-def test_nested_changes_commands():
-    # While 'changes' package struggles with this, the script should just accept them
-    raw = r"\added{Outer \added{Inner}}"
-    expected = r"Outer Inner"
     assert process_content(raw) == expected
     
 def test_whitespace_in_replaced():
-    # \replaced {new} {old}
+    # Allows spaces like \replaced {new} {old}
     raw = r"\replaced {new} {old}"
     expected = r"new"
     assert process_content(raw) == expected
