@@ -1,4 +1,3 @@
-```markdown
 # LaTeX Changes Cleaner
 
 A robust Python tool designed to *flatten* LaTeX documents that use the `changes` package.
@@ -69,4 +68,3 @@ python cleaner.py ./my_custom_source ./my_custom_output
 
 MIT License.  
 Feel free to use this for your academic submissions.
-```
