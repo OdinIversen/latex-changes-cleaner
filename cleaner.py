@@ -29,9 +29,6 @@ def find_matching_brace(text, start_index):
             # Skip everything until the next newline
             while i < length and text[i] != '\n':
                 i += 1
-            # Now i is at \n (or end of string). 
-            # We continue the outer loop. The next iteration will read \n 
-            # and process it normally (incrementing i).
             continue
 
         # 3. Handle Braces
@@ -50,7 +47,6 @@ def find_matching_brace(text, start_index):
 def process_content(content):
     """
     Iteratively finds changes package commands and resolves them.
-    REGEX UPDATE: Now allows whitespace before the brace (e.g., \added {text})
     """
     
     # 1. Handle \added{...} -> ...
@@ -100,7 +96,6 @@ def process_content(content):
         # Second argument (Old Text)
         remaining = content[end_brace_1+1:]
         
-        # Find first '{' that isn't whitespace
         next_brace_rel = -1
         for idx, c in enumerate(remaining):
             if c.isspace(): continue
@@ -118,7 +113,6 @@ def process_content(content):
         
         new_text = content[start_brace_1+1 : end_brace_1]
         
-        # Replace the whole \replaced{new}{old} block with just 'new'
         content = content[:start_cmd] + new_text + content[end_brace_2+1:]
 
     # 4. Handle \highlight{...} -> ...
@@ -137,7 +131,7 @@ def process_content(content):
 
     return content
 
-def clean_directory(input_dir, output_dir):
+def clean_directory(input_dir, output_dir, force=False):
     if not os.path.exists(input_dir):
         print(f"Input directory '{input_dir}' not found.")
         os.makedirs(input_dir)
@@ -148,45 +142,56 @@ def clean_directory(input_dir, output_dir):
         os.makedirs(output_dir)
         print(f"Created output directory: {output_dir}")
 
-    files_processed = 0
-    tex_files_found = False
-
-    for filename in os.listdir(input_dir):
-        if filename.endswith(".tex"):
-            tex_files_found = True
-            input_path = os.path.join(input_dir, filename)
-            output_path = os.path.join(output_dir, filename)
-            
-            print(f"Processing: {filename}...")
-            
-            try:
-                with open(input_path, 'r', encoding='utf-8') as f:
-                    raw_content = f.read()
-                
-                cleaned_content = process_content(raw_content)
-                
-                # Comment out changes package import
-                cleaned_content = re.sub(r'(\\usepackage(\[.*?\])?\{changes\})', r'% \1', cleaned_content)
-
-                with open(output_path, 'w', encoding='utf-8') as f:
-                    f.write(cleaned_content)
-                
-                files_processed += 1
-                
-            except Exception as e:
-                print(f"  [Error] Failed to process {filename}: {e}")
+    # 1. Gather files first
+    tex_files = [f for f in os.listdir(input_dir) if f.endswith(".tex")]
     
-    if not tex_files_found:
+    if not tex_files:
         print(f"No .tex files found in '{input_dir}/'. Please add your files there.")
-    else:
-        print(f"\nDone! {files_processed} .tex files processed.")
-        print(f"Clean files are located in: {output_dir}/")
+        return
+
+    print(f"Found {len(tex_files)} .tex file(s) in '{input_dir}/'.")
+
+    files_converted = 0
+    files_skipped = 0
+
+    for filename in tex_files:
+        input_path = os.path.join(input_dir, filename)
+        output_path = os.path.join(output_dir, filename)
+        
+        # 2. Check if output exists
+        if os.path.exists(output_path) and not force:
+            print(f"  [Already Exists] {filename} - Skipping (use --force to overwrite)")
+            files_skipped += 1
+            continue
+
+        try:
+            with open(input_path, 'r', encoding='utf-8') as f:
+                raw_content = f.read()
+            
+            cleaned_content = process_content(raw_content)
+            
+            # Comment out changes package import
+            cleaned_content = re.sub(r'(\\usepackage(\[.*?\])?\{changes\})', r'% \1', cleaned_content)
+
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(cleaned_content)
+            
+            print(f"  [Converted]      {filename}")
+            files_converted += 1
+            
+        except Exception as e:
+            print(f"  [Error] Failed to process {filename}: {e}")
+
+    print(f"\nSummary: {files_converted} converted, {files_skipped} skipped.")
+    print(f"Clean files are located in: {output_dir}/")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Flatten LaTeX files by accepting 'changes' package edits.")
     parser.add_argument("input_dir", nargs='?', default='input', help="Path to source folder")
     parser.add_argument("output_dir", nargs='?', default='output', help="Path to output folder")
+    parser.add_argument("--force", "-f", action="store_true", help="Overwrite existing output files")
+    
     args = parser.parse_args()
     
     print(f"--- LaTeX Changes Cleaner ---")
-    clean_directory(args.input_dir, args.output_dir)
+    clean_directory(args.input_dir, args.output_dir, args.force)

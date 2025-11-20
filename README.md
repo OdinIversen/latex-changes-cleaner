@@ -1,21 +1,38 @@
-LaTeX Changes Cleaner
+# LaTeX Changes Cleaner
+
 A robust Python tool designed to "flatten" LaTeX documents that use the `changes` package.
 
 It automatically "accepts" all tracked changes (additions, replacements) and removes deletions, producing a clean `.tex` file ready for the next round of peer review or final publication.
 
-## The Problem it Solves
+## Features
 
-When using regex find-and-replace in editors like Overleaf, simple patterns fail when the tracked text contains nested commands (e.g., `\deleted{text with \cite{ref}}`). The regex often matches the wrong closing brace, breaking the LaTeX code.
+*   **Safeguards:** By default, it does not overwrite existing files in the output folder.
+*   **Detailed Feedback:** Reports which files are converted and which are skipped.
+*   **Parser Logic:** Handles nested braces (`\textbf{...}`), escaped braces (`\{`), and comments (`%`).
 
-This tool uses a parser-style brace matching algorithm to correctly identify the scope of every LaTeX command. It correctly handles:
+## Usage
 
-*   Nested braces (`\textbf{...}`)
-*   Escaped braces (`\{`, `\}`)
-*   Comments containing braces (`% }`)
+Run the script:
+
+```bash
+python cleaner.py
+```
+
+**Default Behavior:**
+
+*   Reads from `input/`
+*   Writes to `output/`
+*   Skips files if they already exist in `output/` to prevent accidental data loss.
+
+**To Overwrite Files (Force Mode):**
+
+If you want to update your clean files after making changes to the input, use the `--force` (or `-f`) flag:
+
+```bash
+python cleaner.py --force
+```
 
 ## Folder Structure
-
-The script expects (and will create) a simple structure. **Note:** The `input` and `output` folders are ignored by Git to protect your private paper content.
 
 ```text
 latex-changes-cleaner/
@@ -27,41 +44,15 @@ latex-changes-cleaner/
 └── .gitignore
 ```
 
-## Usage
-
-1.  Clone this repository.
-2.  Ensure you have Python 3 installed.
-3.  Run the script:
-
-    ```bash
-    python cleaner.py
-    ```
-
-*   **First Run:** The script will create the `input/` folder for you.
-*   **Add Files:** Copy your `.tex` files into the `input/` folder.
-*   **Process:** Run the script again. Your clean files will be generated in the `output/` folder.
-
-### Advanced Usage
-
-You can override the default folders if you prefer:
-
-```bash
-python cleaner.py ./my_custom_source ./my_custom_output
-```
-
 ## Testing
 
-To ensure the script works correctly before applying it to your important documents, you can run the included test suite. This checks edge cases like escaped characters, math mode, and comments.
+To run the included test suite:
 
 ```bash
-python test_cleaner.py
+pip install pytest
+pytest
 ```
-
-## Requirements
-
-*   Python 3.x
-*   No external dependencies (uses standard libraries only).
 
 ## License
 
-MIT License. Feel free to use this for your academic submissions.
+MIT License.
